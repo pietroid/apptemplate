@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Creates a new app from this template: ./new-app  (or ./new-app --resume <slug>)
+# See cli/new-app.mjs. Run it from a real terminal (Terminal.app, iTerm):
+# it asks questions, and reaches the Pi over the local network.
+set -euo pipefail
+here="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+if [ ! -d "$here/cli/node_modules" ]; then
+  (cd "$here/cli" && npm ci --silent --no-fund --no-audit)
+fi
+exec node "$here/cli/new-app.mjs" "$@"
