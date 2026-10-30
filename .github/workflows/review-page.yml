@@ -21,7 +21,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Pages may be off: a private repo on a free plan has none, and a repo
+  # whose queue was never set up never turned it on. Then there is nothing
+  # to publish to, and the page is skipped rather than failed.
+  pages:
+    runs-on: ubuntu-latest
+    outputs:
+      on: ${{ steps.check.outputs.on }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" > /dev/null 2>&1; then
+            echo "on=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is off for this repository; the review page is not published."
+          fi
+
   publish:
+    needs: pages
+    if: needs.pages.outputs.on == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
