@@ -241,9 +241,12 @@ async function askNames(cfg) {
   }));
   const visibility = await answer(p.select({
     message: 'Repository visibility',
+    // Public first: GitHub Pages, and so the queue's review page, only works
+    // on public repos on the free plan.
+    initialValue: 'public',
     options: [
-      { value: 'private', label: 'Private', hint: 'the review page needs GitHub Pages, which private repos only get on a paid plan' },
-      { value: 'public', label: 'Public', hint: 'like Lunna; the queue only ever reads your own issues' },
+      { value: 'public', label: 'Public', hint: 'like Lunna; GitHub Pages works, and the queue only ever reads your own issues' },
+      { value: 'private', label: 'Private', hint: 'no GitHub Pages on the free plan, so no review page' },
     ],
   }));
   return { slug, repo, label, pkg, bundle, description, visibility, host: `${slug}.${cfg.domain}` };
