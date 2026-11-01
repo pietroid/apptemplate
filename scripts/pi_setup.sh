@@ -9,7 +9,7 @@
 # CLI does this for you:
 #
 #   scp scripts/pi_setup.sh scripts/cloudflare_add_domain.sh server.env focus:
-#   ssh -t focus ./pi_setup.sh apptemplate 8100 3100 apptemplate.pietroteruya.dev server.env
+#   ssh -t focus ./pi_setup.sh apptemplate 8100 3100 <your-domain> server.env
 #
 # The env file is moved into /opt/<app>/.env (an existing one is kept as
 # .env.bak). Without it, an existing .env stays and only its ports change.

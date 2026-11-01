@@ -28,8 +28,8 @@ written. Code, comments, commits and this file stay in English.
 - **Analytics:** PostHog, off until a key is set.
 - **Deploy:** two ARM64 images on GHCR (`apptemplate-backend`,
   `apptemplate-web`), pulled by a Raspberry Pi over SSH through a
-  Cloudflare tunnel, served at `apptemplate.pietroteruya.dev`. See
-  [SETUP.md](./SETUP.md).
+  Cloudflare tunnel, served at `<your-domain>` (e.g. `apptemplate.pietroteruya.dev`
+  or `my-own.app`). See [SETUP.md](./SETUP.md).
 
 ## Layout
 

@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 const TEMPLATE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_DIR = path.join(os.homedir(), '.config', 'apptemplate');
@@ -32,6 +33,23 @@ const APPS = path.join(CONFIG_DIR, 'apps');
 const DEPLOY_ENV = process.env.PI_DEPLOY_CONFIG ?? path.join(os.homedir(), '.config', 'pi-deploy', 'deploy.env');
 // Never copied into a new app: the CLI is the template's own.
 const NOT_COPIED = [/^cli\//, /^new-app$/];
+
+const CLI_FLAGS = parseArgs({
+  options: {
+    resume: { type: 'string' },
+    domain: { type: 'string' },
+    'bundle-prefix': { type: 'string' },
+    'ssh-hostname': { type: 'string' },
+    owner: { type: 'string' },
+    help: { type: 'boolean', short: 'h' },
+  },
+  allowPositionals: false,
+}).values;
+
+const defaultDomain = CLI_FLAGS.domain;
+const defaultBundlePrefix = CLI_FLAGS['bundle-prefix'];
+const defaultSshHostname = CLI_FLAGS['ssh-hostname'];
+const defaultOwner = CLI_FLAGS.owner;
 
 // ---------------------------------------------------------------------------
 // Small helpers
@@ -139,10 +157,20 @@ async function sharedConfig() {
   const first = !fs.existsSync(CONFIG);
   if (first) p.note('These are asked once and reused for every app.\nThey are kept in ~/.config/apptemplate/config.json (only you can read it).', 'First run');
 
-  cfg.owner ??= sh('gh', ['api', 'user', '--jq', '.login']).out;
+  cfg.owner ??= defaultOwner ?? sh('gh', ['api', 'user', '--jq', '.login']).out;
   cfg.projectsDir ??= path.dirname(TEMPLATE);
-  cfg.domain ??= 'pietroteruya.dev';
+  cfg.domain ??= defaultDomain ?? 'pietroteruya.dev';
+  cfg.bundlePrefix ??= defaultBundlePrefix ?? 'com.pietroid';
   cfg.emails ??= sh('git', ['config', 'user.email'], { allowFail: true }).out;
+
+  if (first) {
+    cfg.bundlePrefix = (await answer(p.text({
+      message: 'iOS/Android bundle prefix',
+      defaultValue: cfg.bundlePrefix,
+      placeholder: 'com.pietroid',
+      validate: (v) => (/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(v?.trim() ?? '') ? undefined : 'A reverse-domain prefix, like com.example'),
+    }))).trim().toLowerCase();
+  }
 
   if (!cfg.openrouterKey) {
     // The key every app has used so far, if Lunna is next door.
@@ -188,7 +216,11 @@ async function deployConfig() {
   ].join('\n'), 'Pi deploy settings');
   const values = {};
   if (!env.PI_SSH_HOST) values.PI_SSH_HOST = await answer(p.text({ message: 'SSH alias of the Pi (~/.ssh/config)', defaultValue: 'focus', placeholder: 'focus' }));
-  if (!env.CLOUDFLARE_SSH_HOSTNAME) values.CLOUDFLARE_SSH_HOSTNAME = await answer(p.text({ message: 'Tunnel hostname the deploy SSHes through', defaultValue: 'deploy.pietroteruya.dev', placeholder: 'deploy.pietroteruya.dev' }));
+  if (!env.CLOUDFLARE_SSH_HOSTNAME) values.CLOUDFLARE_SSH_HOSTNAME = await answer(p.text({
+    message: 'Tunnel hostname the deploy SSHes through',
+    defaultValue: defaultSshHostname ?? env.CLOUDFLARE_SSH_HOSTNAME ?? 'deploy.pietroteruya.dev',
+    placeholder: 'deploy.pietroteruya.dev',
+  }));
   if (!env.TUNNEL_SERVICE_TOKEN_ID) values.TUNNEL_SERVICE_TOKEN_ID = await answer(p.text({ message: 'Service token Client ID', validate: required('The Client ID') }));
   if (!env.TUNNEL_SERVICE_TOKEN_SECRET) values.TUNNEL_SERVICE_TOKEN_SECRET = await answer(p.password({ message: 'Service token Client Secret', validate: required('The secret') }));
   setEnv(DEPLOY_ENV, values);
@@ -201,8 +233,15 @@ async function deployConfig() {
 
 async function askNames(cfg) {
   p.log.step(pc.bold('The app'));
+  const domain = (await answer(p.text({
+    message: 'Domain',
+    defaultValue: cfg.domain,
+    placeholder: 'pietroteruya.dev',
+    validate: (v) => (/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(v?.trim() ?? '') ? undefined : 'A domain, like my-own.app'),
+  }))).trim().toLowerCase();
+
   const slug = await answer(p.text({
-    message: `Name in the domain (${pc.dim(`<name>.${cfg.domain}`)})`,
+    message: 'Short name (used for the folder, images and repo)',
     placeholder: 'voiceover',
     validate: (v) => {
       if (!/^[a-z][a-z0-9-]{1,30}$/.test(v ?? '')) return 'Lowercase letters, digits and -, starting with a letter';
@@ -210,6 +249,13 @@ async function askNames(cfg) {
       return undefined;
     },
   }));
+
+  const subdomain = (await answer(p.text({
+    message: `Subdomain ${pc.dim('(leave empty for apex ' + pc.bold(domain) + ')')}`,
+    placeholder: 'e.g. app',
+  })))?.trim().toLowerCase() ?? '';
+  const host = subdomain && subdomain !== domain ? `${subdomain}.${domain}` : domain;
+
   const repoDefault = slug.replace(/-/g, '_');
   const repo = await answer(p.text({
     message: `GitHub repository (${pc.dim(`${cfg.owner}/<repo>`)})`,
@@ -233,7 +279,12 @@ async function askNames(cfg) {
     placeholder: pkgDefault, defaultValue: pkgDefault,
     validate: (v) => (/^[a-z][a-z0-9_]*$/.test(v?.trim() || pkgDefault) ? undefined : 'lowercase_with_underscores'),
   }));
-  const bundle = `com.pietroid.${pkg.replace(/_/g, '')}`;
+  const bundleDefault = `${cfg.bundlePrefix}.${pkg.replace(/_/g, '')}`;
+  const bundle = await answer(p.text({
+    message: `Bundle ID ${pc.dim('(Enter keeps it)')}`,
+    placeholder: bundleDefault, defaultValue: bundleDefault,
+    validate: (v) => (/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(v?.trim() || bundleDefault) ? undefined : 'A reverse-domain id, like com.example.app'),
+  }));
   const description = await answer(p.text({
     message: 'What is it, in one line? (for the README, AGENTS.md and the assistant)',
     placeholder: 'A voice notes app that turns rambling into tidy text.',
@@ -249,7 +300,7 @@ async function askNames(cfg) {
       { value: 'private', label: 'Private', hint: 'no GitHub Pages on the free plan, so no review page' },
     ],
   }));
-  return { slug, repo, label, pkg, bundle, description, visibility, host: `${slug}.${cfg.domain}` };
+  return { slug, repo, label, pkg, bundle, description, visibility, host };
 }
 
 async function askNeon(app) {
@@ -503,14 +554,19 @@ function pickPorts(host, app) {
 // ---------------------------------------------------------------------------
 
 async function main() {
-  const argv = process.argv.slice(2);
-  if (argv.includes('-h') || argv.includes('--help')) {
-    console.log('usage: ./new-app [--resume <slug>]');
+  if (CLI_FLAGS.help) {
+    console.log(`usage: ./new-app [--resume <slug>] [options]
+
+options:
+  --resume <slug>        Pick up a previously started app
+  --domain <domain>      Default base domain (e.g. my-own.app)
+  --bundle-prefix <pre>  Default bundle prefix (e.g. com.example)
+  --ssh-hostname <host>  Tunnel hostname the deploy SSHes through
+  --owner <owner>        GitHub owner (defaults to gh api user)
+  -h, --help             Show this help`);
     return;
   }
-  const resumeAt = argv.indexOf('--resume');
-  const resumeSlug = resumeAt >= 0 ? argv[resumeAt + 1] : null;
-  if (resumeAt >= 0 && !resumeSlug) bail('usage: ./new-app --resume <slug>');
+  const resumeSlug = CLI_FLAGS.resume ?? null;
 
   console.log();
   p.intro(pc.inverse(' new app '));

@@ -104,6 +104,19 @@ export class OpenRouterClient {
     return this._config.get<string>('OPENROUTER_API_KEY') ?? '';
   }
 
+  /** Public origin sent to OpenRouter as the HTTP referer. */
+  private get _referer(): string {
+    const urls = (this._config.get<string>('BETTER_AUTH_URL') ?? '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter((u) => u !== '');
+    return urls[0] ?? 'https://apptemplate.pietroteruya.dev';
+  }
+
+  private get _appName(): string {
+    return this._config.get<string>('OPENROUTER_APP_NAME') ?? 'App Template';
+  }
+
   /**
    * One generation, asked again once when OpenRouter errs, times out or
    * answers with nothing.
@@ -143,8 +156,8 @@ export class OpenRouterClient {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this._apiKey}`,
-          'HTTP-Referer': 'https://apptemplate.pietroteruya.dev',
-          'X-Title': 'App Template',
+          'HTTP-Referer': this._referer,
+          'X-Title': this._appName,
         },
         body: JSON.stringify({
           model: this.model,

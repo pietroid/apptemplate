@@ -23,7 +23,7 @@ A Flutter app for iPhone, Android and the web, with its own backend.
   on Neon through Drizzle, and the assistant through OpenRouter.
 
 Deployed to a Raspberry Pi as Docker images pulled from GHCR, at
-<https://apptemplate.pietroteruya.dev>.
+<https://apptemplate.pietroteruya.dev> (replace with your own domain in SETUP.md).
 
 - [SETUP.md](./SETUP.md): local development, Google OAuth, Neon, deployment.
 - [AGENTS.md](./AGENTS.md): how the code is organised.

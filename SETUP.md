@@ -20,12 +20,12 @@ One Google Cloud project for the app, so the consent screen names it. Under
 
    | | |
    |---|---|
-   | JavaScript origins | `https://apptemplate.pietroteruya.dev`, `http://localhost:5173`, `http://localhost:3000` |
-   | Redirect URIs | `https://apptemplate.pietroteruya.dev/api/auth/callback/google`, `http://localhost:3000/api/auth/callback/google` |
+   | JavaScript origins | `https://<your-domain>`, `http://localhost:5173`, `http://localhost:3000` |
+   | Redirect URIs | `https://<your-domain>/api/auth/callback/google`, `http://localhost:3000/api/auth/callback/google` |
 
    Its secret goes to the server only.
-2. **iOS client** for `com.pietroid.apptemplate`, and another for
-   `com.pietroid.apptemplate.dev`.
+2. **iOS client** for `com.<your-prefix>.<app>`, and another for
+   `com.<your-prefix>.<app>.dev`.
 3. **Android client** for each package (the same two), with your keystore's
    SHA-1 (`cd app/android && ./gradlew signingReport`).
 
@@ -62,28 +62,81 @@ phone, `API_BASE_URL` must be your machine's LAN address
 
 ## 4. The Raspberry Pi
 
-The Pi runs two containers from GHCR, in `/opt/apptemplate`:
+The Pi runs two containers from GHCR, in `/opt/<app>`:
 
-- `apptemplate-backend`: the API, published on the Pi's loopback only
+- `<app>-backend`: the API, published on the Pi's loopback only
   (`curl localhost:$BACKEND_PORT/api/health` there);
-- `apptemplate-web`: nginx serving the Flutter web build and proxying `/api`
+- `<app>-web`: nginx serving the Flutter web build and proxying `/api`
   to the backend, on `WEB_PORT`, which the Cloudflare tunnel routes
-  `apptemplate.pietroteruya.dev` to.
+  `<your-domain>` to.
 
-`/opt/apptemplate/.env` is the server's production env (see
-`server/.env.example`, with `BETTER_AUTH_URL=https://apptemplate.pietroteruya.dev`)
+`/opt/<app>/.env` is the server's production env (see
+`server/.env.example`, with `BETTER_AUTH_URL=https://<your-domain>`)
 plus `WEB_PORT` and `BACKEND_PORT`. `scripts/pi_setup.sh` installs it, checks
 the ports and adds the tunnel's hostname (`scripts/cloudflare_add_domain.sh`):
 
 ```bash
 scp scripts/pi_setup.sh scripts/cloudflare_add_domain.sh server.env focus:
-ssh -t focus ./pi_setup.sh apptemplate <web port> <backend port> apptemplate.pietroteruya.dev server.env
+ssh -t focus ./pi_setup.sh <app> <web port> <backend port> <your-domain> server.env
 ```
 
 To roll back, set `APP_TAG=<commit sha>` (one of the five kept) in the
 `.env` and run `docker compose up -d`.
 
-## 5. GitHub
+## 5. DNS and the Cloudflare Tunnel
+
+The public domain can be either an apex (`my-own.app`) or a subdomain
+(`app.my-own.app`).
+
+**Apex (`my-own.app`)**
+
+- The Cloudflare tunnel creates a CNAME record at the apex. Cloudflare
+  supports CNAME flattening for apex domains, so this works on a
+  proxied (orange-cloud) record.
+- Google OAuth JavaScript origin and redirect URI must be exactly
+  `https://my-own.app` and `https://my-own.app/api/auth/callback/google`.
+- `BETTER_AUTH_URL` and the app's `API_BASE_URL` must also use
+  `https://my-own.app`.
+
+**Subdomain (`app.my-own.app`)**
+
+- Easier if you already use the apex for something else. The tunnel
+  creates a proxied CNAME from `app.my-own.app` to
+  `<tunnel-id>.cfargotunnel.com`.
+- Google OAuth, `BETTER_AUTH_URL` and `API_BASE_URL` all use
+  `https://app.my-own.app`.
+
+**Setting it up**
+
+1. Add the domain to your Cloudflare account (Nameservers or CNAME setup).
+2. Create a Cloudflare Tunnel: **Zero Trust → Networks → Tunnels** → Create
+   tunnel. Copy the tunnel token.
+3. Install `cloudflared` on the Pi and run it with the token:
+   ```bash
+   cloudflared service install <token>
+   ```
+   Or manage the tunnel in the dashboard and let `cloudflare_add_domain.sh`
+   edit it through the API (it needs `CF_API_TOKEN` with Zone > DNS > Edit
+   and Account > Cloudflare Tunnel > Edit).
+4. Run `scripts/cloudflare_add_domain.sh <your-domain> <web-port>` on the
+   Pi. It adds the ingress rule and the DNS record.
+
+   **A domain in a zone of its own** (say the Pi already serves
+   `*.pietroteruya.dev` and the new app is `my-own.app`): the `cert.pem`
+   from `cloudflared tunnel login` belongs to one zone, and
+   `cloudflared tunnel route dns` quietly creates
+   `my-own.app.pietroteruya.dev` instead. Run the script with
+   `CF_API_TOKEN` (Zone > DNS > Edit on the new zone) and it creates the
+   record in the right zone through the API. Without the token it stops
+   and says what to add in the dashboard: a proxied `CNAME @ →
+   <tunnel-id>.cfargotunnel.com` in the new zone.
+5. Wait for DNS, then `curl -I https://<your-domain>` should hit the Pi. If
+   your machine looked the name up before the record existed, it may keep
+   the "not found" answer for up to 30 minutes (the zone's negative TTL):
+   check with `dig +short <your-domain> @1.1.1.1`, and on macOS clear it
+   with `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`.
+
+## 6. GitHub
 
 `.github/workflows/deploy.yml` runs on every push to `main`: tests, and once
 the variable `DEPLOY` is `true`, builds both images for ARM64, pushes them to
@@ -101,7 +154,7 @@ the variable `DEPLOY` is `true`, builds both images for ARM64, pushes them to
 Keep the images **private** (your profile → Packages → each image →
 Package settings).
 
-## 6. PostHog
+## 7. PostHog
 
 Optional, and off until its key is set. The project key (`phc_…`) goes in
 the server's `POSTHOG_KEY`, the repository variable `POSTHOG_KEY` (the web

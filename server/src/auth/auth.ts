@@ -13,7 +13,7 @@ export const AUTH_BASE_PATH = '/api/auth';
 export interface AuthSettings {
   /**
    * The public origins the app is served from, e.g.
-   * https://apptemplate.pietroteruya.dev. The first is the fallback for a
+   * https://<your-domain>. The first is the fallback for a
    * request whose host is none of these.
    */
   baseUrls: string[];

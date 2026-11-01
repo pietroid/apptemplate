@@ -30,7 +30,7 @@ if [[ ! -f $config ]]; then
 PI_SSH_HOST=focus
 
 # The tunnel hostname the deploy SSHes in through.
-CLOUDFLARE_SSH_HOSTNAME=deploy.pietroteruya.dev
+CLOUDFLARE_SSH_HOSTNAME=deploy.<your-domain>
 
 # Cloudflare Zero Trust -> Access -> Service Auth -> Service Tokens.
 TUNNEL_SERVICE_TOKEN_ID=

@@ -27,7 +27,7 @@ services:
     image: ghcr.io/${APP_OWNER:-pietroid}/apptemplate-web:${APP_TAG:-latest}
     container_name: apptemplate-web
     restart: unless-stopped
-    # The Cloudflare tunnel points apptemplate.pietroteruya.dev at this port.
+    # The Cloudflare tunnel points <your-domain> at this port.
     # On every interface, as Lunna's is, whichever way cloudflared reaches it.
     ports:
       - "${WEB_PORT:?set WEB_PORT in .env}:80"

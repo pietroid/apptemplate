@@ -7,13 +7,10 @@ describe('baseUrlOf', () => {
 
   it('answers on each host, falling back to the first', () => {
     expect(
-      baseUrlOf([
-        'https://apptemplate.pietroteruya.dev',
-        'http://localhost:3000',
-      ]),
+      baseUrlOf(['https://app.example.com', 'http://localhost:3000']),
     ).toEqual({
-      allowedHosts: ['apptemplate.pietroteruya.dev', 'localhost:3000'],
-      fallback: 'https://apptemplate.pietroteruya.dev',
+      allowedHosts: ['app.example.com', 'localhost:3000'],
+      fallback: 'https://app.example.com',
       protocol: 'https',
     });
   });

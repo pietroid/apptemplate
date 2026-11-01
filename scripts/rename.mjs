@@ -13,8 +13,9 @@
 //   apptemplate                the subdomain, containers, images and
 //                              /opt folder on the Pi        -> --slug
 //
-// The bundle id defaults to com.pietroid.<package without underscores>,
-// since iOS allows no underscore in one.
+// The bundle id defaults to <prefix>.<package without underscores>. The
+// prefix is --bundle-prefix (default com.pietroid), since iOS allows no
+// underscore in one.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -26,6 +27,7 @@ const { values } = parseArgs({
     package: { type: 'string' },
     label: { type: 'string' },
     bundle: { type: 'string' },
+    'bundle-prefix': { type: 'string' },
     'dry-run': { type: 'boolean', default: false },
   },
 });
@@ -38,11 +40,13 @@ const fail = (message) => {
 const slug = values.slug ?? fail('--slug is required');
 const pkg = values.package ?? fail('--package is required');
 const label = values.label ?? fail('--label is required');
-const bundle = values.bundle ?? `com.pietroid.${pkg.replaceAll('_', '')}`;
+const bundlePrefix = values['bundle-prefix'] ?? 'com.pietroid';
+const bundle = values.bundle ?? `${bundlePrefix}.${pkg.replaceAll('_', '')}`;
 
 if (!/^[a-z][a-z0-9-]*$/.test(slug)) fail('--slug: lowercase letters, digits and -');
 if (!/^[a-z][a-z0-9_]*$/.test(pkg)) fail('--package: lowercase letters, digits and _');
-if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(bundle)) fail('--bundle: like com.pietroid.app');
+if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(bundlePrefix)) fail('--bundle-prefix: like com.example');
+if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$/.test(bundle)) fail('--bundle: like com.example.app');
 if (!label.trim() || /["\\]/.test(label)) fail('--label: no quotes or backslashes');
 
 const root = process.cwd();
